@@ -11,6 +11,7 @@ import {
   Input,
   Button,
 } from "@chakra-ui/react";
+import { FaUpload } from "react-icons/fa";
 import CodeEditor from "./components/editor";
 import PreviewPane from "./components/preview";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
@@ -149,14 +150,22 @@ export default function App() {
             <Heading mb={4} fontSize="2xl" color="teal.600">
               Real-Time Code Editor
             </Heading>
+            <Button
+              as="label"
+              htmlFor="file-input"
+              leftIcon={<FaUpload />}
+              colorScheme="teal"
+              mb={2}
+              cursor="pointer"
+            >
+              Upload HTML file
+            </Button>
             <Input
               id="file-input"
               type="file"
               accept=".html"
               onChange={handleFileUpload}
-              mb={2}
-              placeholder="Upload HTML file"
-              borderColor="gray.300"
+              display="none"
             />
             <Tabs
               variant="solid-rounded"

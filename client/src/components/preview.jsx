@@ -1,73 +1,63 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Box, Button, Select, Textarea, VStack, Flex } from '@chakra-ui/react';
 
 export default function PreviewPane({ html, css, js, autoRun }) {
   const [consoleOutput, setConsoleOutput] = useState('');
   const [screenSize, setScreenSize] = useState('desktop');
-  const [consoleVisible, setConsoleVisible] = useState(true); // New state for console visibility
+  const [consoleVisible, setConsoleVisible] = useState(true);
+  const consoleRef = useRef(null); // Reference to the console Textarea
 
-  // Function to capture console logs and alerts from the iframe
-  const captureConsoleAndAlerts = (iframe) => {
-    const iframeWindow = iframe.contentWindow;
-    const originalConsoleLog = iframeWindow.console.log;
-    const originalAlert = iframeWindow.alert;
-
-    // Create a custom log function within the iframe
-    iframeWindow.console.log = (...args) => {
-      setConsoleOutput((prev) => `${prev}\n[Console] ${args.join(' ')}`);
-      originalConsoleLog.apply(iframeWindow.console, args);
+  // Function to listen for messages from the iframe (for console logs and alerts)
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'console') {
+        setConsoleOutput((prev) => `${prev}\n[Console] ${event.data.message}`);
+      }
     };
 
-    // Create a custom alert function within the iframe
-    iframeWindow.alert = (message) => {
-      setConsoleOutput((prev) => `${prev}\n[Alert] ${message}`);
-      originalAlert.call(iframeWindow, message);
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
     };
-  };
+  }, []);
 
-  // Function to refresh the iframe
-  const refreshIframe = () => {
-    const iframe = document.getElementById('previewFrame');
-    if (iframe) {
-      iframe.contentWindow.location.reload();
-    }
-  };
-
-  // Function to download the code as an index.html file
-  const downloadCode = () => {
-    const blob = new Blob([`
+  // Function to create iframe content
+  const createIframeContent = () => {
+    return `
       <html>
         <head>
           <style>${css}</style>
         </head>
         <body>${html}</body>
         <script>
-          ${js}
+          (function() {
+            const log = console.log;
+            console.log = function(...args) {
+              log(...args);
+              window.parent.postMessage({ type: 'console', message: args.join(' ') }, '*');
+            };
+            ${js}
+          })();
         </script>
       </html>
-    `], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'index.html';
-    a.click();
-    URL.revokeObjectURL(url);
+    `;
   };
 
-  const previewContent = `
-    <html>
-      <head>
-        <style>${css}</style>
-      </head>
-      <body>${html}</body>
-      <script>
-        window.addEventListener('load', () => {
-          window.customConsole = { log: console.log };
-          ${js}
-        });
-      </script>
-    </html>
-  `;
+  // Scroll the console output to the bottom whenever it's updated
+  useEffect(() => {
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+    }
+  }, [consoleOutput]);
+
+  // Function to refresh the iframe content
+  const refreshIframe = () => {
+    const iframe = document.getElementById('previewFrame');
+    if (iframe) {
+      iframe.srcdoc = createIframeContent();
+    }
+  };
 
   // Set iframe size based on screen size
   const iframeStyle = {
@@ -76,22 +66,19 @@ export default function PreviewPane({ html, css, js, autoRun }) {
     border: 'none',
   };
 
-  // Run code on component mount or when autoRun changes
+  // Effect to automatically run code when autoRun changes
   useEffect(() => {
     if (autoRun) {
-      const iframe = document.getElementById('previewFrame');
-      if (iframe) {
-        captureConsoleAndAlerts(iframe);
-      }
+      refreshIframe();
     }
-  }, [autoRun, js]);
+  }, [autoRun, html, css, js]);
 
   return (
     <VStack spacing={4} align="stretch" h="100%">
       <Box flex="1" border='1px'>
         <iframe
           id="previewFrame"
-          srcDoc={previewContent}
+          srcDoc={createIframeContent()}
           style={iframeStyle}
           className="border border-gray-300 rounded"
         />
@@ -99,14 +86,35 @@ export default function PreviewPane({ html, css, js, autoRun }) {
       <Box borderTop="1px" borderColor="gray.200" p={2}>
         <Flex direction="column" mb={2}>
           <Flex mb={2}>
-            <Button onClick={() => {
-              const iframe = document.getElementById('previewFrame');
-              if (iframe) {
-                captureConsoleAndAlerts(iframe);
-              }
-            }} colorScheme="teal" mr={2}>Run Console</Button>
-            <Button onClick={refreshIframe} colorScheme="blue" mr={2}>Refresh</Button>
-            <Button onClick={downloadCode} colorScheme="teal" mr={2}>Download Code</Button>
+            <Button
+              onClick={refreshIframe}
+              colorScheme="teal"
+              mr={2}
+            >
+              Run Console
+            </Button>
+            <Button
+              onClick={refreshIframe}
+              colorScheme="blue"
+              mr={2}
+            >
+              Refresh
+            </Button>
+            <Button
+              colorScheme="teal"
+              mr={2}
+              onClick={() => {
+                const blob = new Blob([createIframeContent()], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'index.html';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Download Code
+            </Button>
             <Button onClick={() => setConsoleVisible(prev => !prev)} colorScheme="purple" ml={2}>
               {consoleVisible ? 'Hide Console' : 'Show Console'}
             </Button>
@@ -122,6 +130,7 @@ export default function PreviewPane({ html, css, js, autoRun }) {
           </Select>
           {consoleVisible && (
             <Textarea
+              ref={consoleRef} // Attach the ref to the Textarea for scrolling
               value={consoleOutput}
               isReadOnly
               placeholder="Console output will appear here..."
@@ -129,6 +138,7 @@ export default function PreviewPane({ html, css, js, autoRun }) {
               resize="none"
               fontFamily="monospace"
               bg="gray.50"
+              overflowY="auto" // Enable scrolling
             />
           )}
         </Flex>
