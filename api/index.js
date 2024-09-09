@@ -29,7 +29,7 @@ app.use(
 
 app.use(express.json());
 
-app.post("/", async (req, res) => {
+app.post("/any", async (req, res) => {
   try {
     const { content, type } = req.body; // Expecting 'content' and 'type' (e.g., 'html', 'css', 'js') from the frontend
 
