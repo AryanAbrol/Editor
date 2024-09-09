@@ -11,5 +11,8 @@
       "src": "/(.*)",
       "dest": "/api/index.js"
     }
-  ]   
+  ],
+  "env": {
+    "API_KEY": "AIzaSyDvbYwyGvlx_3Oc7FbhdjjBCZJUcFG2u24"
+  }
 }
