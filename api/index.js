@@ -29,7 +29,7 @@ app.use(
 
 app.use(express.json());
 
-app.post("/any", async (req, res) => {
+app.post("/", async (req, res) => {
   try {
     const { content, type } = req.body; 
 
